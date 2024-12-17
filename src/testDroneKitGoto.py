@@ -62,7 +62,6 @@ def arm_and_takeoff(aTargetAltitude):
     vehicle.mode = VehicleMode("GUIDED")
     vehicle.armed = True
 
-    time.sleep(1)
  
     # Confirm vehicle armed before attempting to take off
     while not vehicle.armed:
