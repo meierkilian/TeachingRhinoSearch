@@ -1,13 +1,20 @@
 import tkinter as tk
 from tkinter import ttk
 from rhinoLoc import RhinoLoc
+from drones import DroneManager
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import json
+import threading
+
+rhinoLoc = None 
+droneManager = None
 
 class DroneGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Drone Rhino Search")
         
-        self.map_image = tk.PhotoImage(file="ressources/mapOlPejeta.png")
+        self.map_image = tk.PhotoImage(file="ressources/mapOlPejeta.png") # https://www.openstreetmap.org/search?lat=0.03571&lon=36.95286#map=13/0.03562/36.95286
         image_width = self.map_image.width()
         image_height = self.map_image.height()
         
@@ -36,24 +43,34 @@ class DroneGUI:
         self.toggle_rhino_button = tk.Button(self.control_frame, text="Toggle Rhino Display", command=self.toggle_rhino_display)
         self.toggle_rhino_button.grid(row=0, column=1, padx=5)
         
-        self.drones = {}
+        self.sense_button = tk.Button(self.control_frame, text="Sense Rhinos", command=self.print_sense_status)
+        self.sense_button.grid(row=0, column=2, padx=5)
+
+        global droneManager
+        droneManager = DroneManager()
+        droneManager.createSwarm(5, takeoff=False, listenOnly=True)
+        for drone_id in droneManager.getDroneNames():
+            self.leaderboard.insert("", "end", values=(drone_id, 0))
 
         self.drone_icon = tk.PhotoImage(file="ressources/droneIcon.png")
         self.drone_icon = self.drone_icon.subsample(self.drone_icon.width() // 40, self.drone_icon.height() // 40)
 
-        self.rhino_icon = tk.PhotoImage(file="ressources/rhinoIcon.png")
-        self.rhino_icon = self.rhino_icon.subsample(self.rhino_icon.width() // 40, self.rhino_icon.height() // 40)
+        self.rhino_icon_green = tk.PhotoImage(file="ressources/rhinoIcon_green.png")
+        self.rhino_icon_green = self.rhino_icon_green.subsample(self.rhino_icon_green.width() // 40, self.rhino_icon_green.height() // 40)
 
+        self.rhino_icon_red = tk.PhotoImage(file="ressources/rhinoIcon_red.png")
+        self.rhino_icon_red = self.rhino_icon_red.subsample(self.rhino_icon_red.width() // 40, self.rhino_icon_red.height() // 40)
+        
         self.limit_north = 0.11518
         self.limit_south = -0.04120
         self.limit_west = 36.81828
         self.limit_east = 37.04487
 
-        self.rhinoLoc = RhinoLoc(1, (self.limit_south, self.limit_west), (self.limit_north, self.limit_east))
-        self.rhino_positions = self.rhinoLoc.get_rhino_positions()
+        global rhinoLoc
+        rhinoLoc = RhinoLoc(10, (self.limit_south, self.limit_west), (self.limit_north, self.limit_east))
         self.show_rhino = True
         
-        self.update_positions()
+        self.update()
 
     def convert_to_canvas_coords(self, lat, lon):
         canvas_width = self.canvas.winfo_width()
@@ -62,49 +79,88 @@ class DroneGUI:
         y = (self.limit_north - lat) / (self.limit_north - self.limit_south) * canvas_height
         return x, y
     
-    def update_positions(self):
+    def update(self):
         self.canvas.delete("all")
         self.canvas.create_image(0, 0, anchor=tk.NW, image=self.map_image)
-        for _, drone_data in self.drones.items():
-            lat, lon = drone_data["position"]
-            x, y = self.convert_to_canvas_coords(lat, lon)
+        scores = {}
+        for drone, name in zip(droneManager.getDroneIDs(), droneManager.getDroneNames()):
+            pos = droneManager.get_drone_position(drone)
+            scores[name] = droneManager.get_rhinos_found(drone)
+            x, y = self.convert_to_canvas_coords(pos.lat, pos.lon)
             self.canvas.create_image(x, y, anchor=tk.CENTER, image=self.drone_icon)
+            self.canvas.create_text(x, y, text=drone, fill="white", font=("HelveticaBold", 10))
+
+        scores = {k: v for k, v in sorted(scores.items(), key=lambda item: item[1], reverse=True)}
+        for item, droneID, score in zip(self.leaderboard.get_children(), scores.keys(), scores.values()):
+            self.leaderboard.item(item, values=(droneID, score))
         
-        if self.show_rhino:
-            for rlat, rlon in self.rhino_positions:
-                rx, ry = self.convert_to_canvas_coords(rlat, rlon)
-                self.canvas.create_image(rx, ry, anchor=tk.CENTER, image=self.rhino_icon)
+        for pos, found in zip(rhinoLoc.get_rhino_positions(), rhinoLoc.get_rhino_found()):
+            if self.show_rhino or found:
+                rx, ry = self.convert_to_canvas_coords(pos.lat, pos.lon)
+                if found:
+                    self.canvas.create_image(rx, ry, anchor=tk.CENTER, image=self.rhino_icon_green)
+                else:
+                    self.canvas.create_image(rx, ry, anchor=tk.CENTER, image=self.rhino_icon_red)
         
-        self.root.after(100, self.update_positions)
+        self.root.after(100, self.update)
     
     def reset_game(self):
-        # self.drones = {}
-        # self.leaderboard.delete(*self.leaderboard.get_children())
-        self.rhinoLoc.regenerate_rhino_positions()
-        self.rhino_positions = self.rhinoLoc.get_rhino_positions()
-        print(f"Dist to rhino : {self.rhinoLoc.distance_to_closest_rhino(self.drones['Drone1']['position'])}")
+        for drone in droneManager.getDroneIDs():
+            droneManager.reset_rhinos_found(drone)
+        rhinoLoc.regenerate_rhino_positions()
         
     def toggle_rhino_display(self):
         self.show_rhino = not self.show_rhino
+
+    def print_sense_status(self):
+        for drone in droneManager.getDroneIDs():
+            sense_status = rhinoLoc.senseRhino(droneManager.get_drone_position(drone))
+            print(f"Drone {drone} sense status: {sense_status}")
     
-    def add_drone(self, drone_id):
-        self.drones[drone_id] = {"position": (0.02661, 36.91492), "rhinos": 0}
-        self.leaderboard.insert("", "end", values=(drone_id, 0))
-    
-    def update_drone_position(self, drone_id, x, y):
-        if drone_id in self.drones:
-            self.drones[drone_id]["position"] = (x, y)
-    
-    def update_drone_rhinos(self, drone_id, rhinos):
-        if drone_id in self.drones:
-            self.drones[drone_id]["rhinos"] = rhinos
-            for item in self.leaderboard.get_children():
-                if self.leaderboard.item(item, "values")[0] == drone_id:
-                    self.leaderboard.item(item, values=(drone_id, rhinos))
+    def run_server(self):
+        server_address = ('', 8080)
+        httpd = HTTPServer(server_address, RequestHandler)
+        print("HTTP server running on port 8080")
+        server_thread = threading.Thread(target=httpd.serve_forever)
+        server_thread.daemon = True
+        server_thread.start()
+
+class RequestHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        if self.path == "/handshake":
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            response = {"message": "Hello from the Rhino Search server!"}
+            self.wfile.write(json.dumps(response).encode())
+        elif self.path == "/sense":
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data)
+            drone_id = data.get("drone_id")
+            if drone_id:
+                sense_status = rhinoLoc.senseRhino(droneManager.get_drone_position(drone_id))
+                self.send_response(200)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                response = {"sense_status": sense_status}
+                if sense_status["state"] == "found":
+                    droneManager.rhinoFound(drone_id)
+                self.wfile.write(json.dumps(response).encode())
+            else:
+                self.send_response(400)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                response = {"error": "Missing drone_id parameter"}
+                self.wfile.write(json.dumps(response).encode())
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+
 
 if __name__ == "__main__":
     root = tk.Tk()
     gui = DroneGUI(root)
-    gui.add_drone("Drone1")
-    gui.add_drone("Drone2")
+    gui.run_server()
     root.mainloop()

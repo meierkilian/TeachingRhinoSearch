@@ -17,10 +17,11 @@ while True:
         print("No message received")
         continue
         
-    else:
-        continue
-        print("\n\n*****Got message: %s*****" % msg.get_type())
-        print("Message: %s" % msg)
-        print("\nAs dictionary: %s" % msg.to_dict())
+    elif msg.get_srcSystem()==2:
+    # else:
+        
+        # print("\n\n*****Got message: %s*****" % msg.get_type())
+        # print("Message: %s" % msg)
+        print("\nAs dictionary: %s" % msg.to_dict()["lon"])
         # Armed = MAV_STATE_STANDBY (4), Disarmed = MAV_STATE_ACTIVE (3)
         # print("\nSystem status: %s" % msg.system_status)

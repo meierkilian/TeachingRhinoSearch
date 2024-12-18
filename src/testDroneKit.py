@@ -8,6 +8,6 @@ if sys.version_info.major == 3 and sys.version_info.minor >= 10:
 from dronekit import connect
 
 # Connect to UDP endpoint.
-vehicle = connect('127.0.0.1:14550', wait_ready=True)
+vehicle = connect('127.0.0.1:14550', wait_ready=True, source_system=1)
 # Use returned Vehicle object to query device state - e.g. to get the mode:
-print("Mode: %s" % vehicle.mode.name)
+print("lon: %s" % vehicle.location.global_relative_frame.lon)

@@ -25,3 +25,13 @@ class geoLoc():
     
     def __str__(self):
         return f"Latitude: {self.lat}, Longitude: {self.lon}, Altitude: {self.alt}"
+    
+if __name__ == "__main__":
+    p1 = geoLoc(0.027467533748910547, 36.90286865957662, 10)
+    p2 = geoLoc(0.028472888028040794, 36.90449713737817, 10)
+    p3 = geoLoc(0.02221388343159939, 36.90697883603347, 10)
+    print(p1.distTo(p1))  # Should print 0.0
+    print(p1.distTo(p2))  # Should print approximately 200m
+    print(p1.distTo(p3))  # Should print approximately 800m
+    print(p2.distTo(p1))  # Should print approximately 200m
+    
