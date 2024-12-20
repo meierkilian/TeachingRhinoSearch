@@ -16,7 +16,6 @@ class DroneGUI:
         self.root.title("Drone Rhino Search")
         
         self.map_image = tk.PhotoImage(file="ressources/mapOlPejeta.png")
-        self.map_image = self.map_image.zoom(2, 2)
         # https://www.openstreetmap.org/export#map=16/0.02800/36.90505
         # Use Export tab for map limit and Share tab for map image
         image_width = self.map_image.width()
