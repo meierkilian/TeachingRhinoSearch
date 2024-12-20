@@ -8,3 +8,8 @@ sim_vehicle.py -v Copter --map --console --count 5 --auto-sysid --location OlPej
 
 module load swarm
 param set SIM_SPEEDUP 5
+param show SIM_SPEEDUP
+
+# To connect from mission planner add ouput on SITL and connect via UDP 
+output add {REMOTE_IP}:14550
+output add 192.168.1.128:14550

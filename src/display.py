@@ -5,6 +5,7 @@ from drones import DroneManager
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import threading
+import param as PARAM
 
 rhinoLoc = None 
 droneManager = None
@@ -14,7 +15,10 @@ class DroneGUI:
         self.root = root
         self.root.title("Drone Rhino Search")
         
-        self.map_image = tk.PhotoImage(file="ressources/mapOlPejeta.png") # https://www.openstreetmap.org/search?lat=0.03571&lon=36.95286#map=13/0.03562/36.95286
+        self.map_image = tk.PhotoImage(file="ressources/mapOlPejeta.png")
+        self.map_image = self.map_image.zoom(2, 2)
+        # https://www.openstreetmap.org/export#map=16/0.02800/36.90505
+        # Use Export tab for map limit and Share tab for map image
         image_width = self.map_image.width()
         image_height = self.map_image.height()
         
@@ -48,7 +52,7 @@ class DroneGUI:
 
         global droneManager
         droneManager = DroneManager()
-        droneManager.createSwarm(5, takeoff=False, listenOnly=True)
+        droneManager.createSwarm(PARAM.droneNbr, takeoff=False, listenOnly=True)
         for drone_id in droneManager.getDroneNames():
             self.leaderboard.insert("", "end", values=(drone_id, 0))
 
@@ -61,13 +65,13 @@ class DroneGUI:
         self.rhino_icon_red = tk.PhotoImage(file="ressources/rhinoIcon_red.png")
         self.rhino_icon_red = self.rhino_icon_red.subsample(self.rhino_icon_red.width() // 40, self.rhino_icon_red.height() // 40)
         
-        self.limit_north = 0.11518
-        self.limit_south = -0.04120
-        self.limit_west = 36.81828
-        self.limit_east = 37.04487
+        self.limit_north = PARAM.limit_north
+        self.limit_south = PARAM.limit_south
+        self.limit_west = PARAM.limit_west
+        self.limit_east = PARAM.limit_east
 
         global rhinoLoc
-        rhinoLoc = RhinoLoc(10, (self.limit_south, self.limit_west), (self.limit_north, self.limit_east))
+        rhinoLoc = RhinoLoc(PARAM.rhinoNbr, (self.limit_south, self.limit_west), (self.limit_north, self.limit_east))
         self.show_rhino = True
         
         self.update()

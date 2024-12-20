@@ -4,21 +4,14 @@ if sys.version_info.major == 3 and sys.version_info.minor >= 10:
     import collections
     setattr(collections, "MutableMapping", collections.abc.MutableMapping)
 
-from dataTypes import geoLoc
+from dataTypes import geoLoc, geoCircle
 import time
 from dronekit import connect, VehicleMode, LocationGlobalRelative
 import itertools
 from pymavlink import mavutil
-
+import param as PARAM
 import requests
-
-IP = "localhost"
-END_POINT_HANDSHAKE = "handshake"
-END_POINT_SENSE = "sense"
-
-URL_HANDSHAKE = f"http://{IP}:8080/{END_POINT_HANDSHAKE}"
-URL_SENSE = f"http://{IP}:8080/{END_POINT_SENSE}"
-
+import numpy as np
 
 class Drone:
     def __init__(self, sysID, IP, portNumber, takeoff):
@@ -30,6 +23,7 @@ class Drone:
         self.name = f"Drone{sysID}"
         self.spinner = itertools.cycle(['-', '/', '|', '\\'])
         self.rhinosFound = 0
+        self.isLastWait = False
 
         self.printInfo(f"Connecting to {IP}:{portNumber}")
         self.startConnection()
@@ -43,14 +37,18 @@ class Drone:
                 time.sleep(1)
             
             self.arm()
-            self.take_off(10)
+            self.take_off(PARAM.takeOffAltitude)
 
     def printInfo(self, msg, wait=False):
         if wait:
+            if not self.isLastWait:
+                print()
             sys.stdout.write("\033[F\033[K")
             sys.stdout.write(f"\r{time.strftime('%Y-%m-%d %H:%M:%S')} - {self.name}: {next(self.spinner)} {msg}\n")
+            self.isLastWait = True
         else:
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {self.name}: {msg}")        
+            self.isLastWait = False
 
     def arm(self):
         self.printInfo("Switch to GUIDED and arming motors")
@@ -79,13 +77,24 @@ class Drone:
         pos = self.vehicle.location.global_relative_frame
         return geoLoc(pos.lat, pos.lon, pos.alt)
 
-    def send_to_waypoint(self, waypoint):
+    def send_to_waypoint(self, waypoint : geoLoc):
+        if waypoint.alt is None:
+            waypoint.alt = self.vehicle.location.global_relative_frame.alt
         point = LocationGlobalRelative(waypoint.lat, waypoint.lon, waypoint.alt)
         self.vehicle.simple_goto(point)
+
+    def gotoWP(self, waypoint : geoLoc):
+        self.send_to_waypoint(waypoint)
+        while not self.is_waypoint_reached(waypoint):
+            self.printInfo(f"Moving to {waypoint}", wait=True)
+            # self.vehicle.home_location = self.vehicle.location.global_frame
+            time.sleep(1)
+
+        self.printInfo(f"Waypoint reached {waypoint}")
             
     def is_waypoint_reached(self, waypoint : geoLoc, threshold=10):
         pos = self.get_position()
-        dist = pos.distance_to(waypoint)
+        dist = pos.distTo(waypoint)
         return dist < threshold
     
     def get_rhinos_found(self):
@@ -141,12 +150,12 @@ class DroneManager:
 
     def createSwarm(self, n, takeoff=True, listenOnly=False):
         if listenOnly:
-            mavlinkHandler = mavutil.mavlink_connection(f'udpin:localhost:14550')
+            mavlinkHandler = mavutil.mavlink_connection(f'udpin:{PARAM.IP}:{PARAM.PORT_LISTERNER}')
             for i in range(n):
-                self.drones[i+1] = DroneListener(sysID=i+1, IP="localhost", portNumber=14550, mavlinkHandler=mavlinkHandler)
+                self.drones[i+1] = DroneListener(sysID=i+1, IP=PARAM.IP, portNumber=PARAM.PORT_LISTERNER, mavlinkHandler=mavlinkHandler)
         else:
             for i in range(n):
-                self.drones[i+1] = Drone(sysID=i+1, IP="localhost", portNumber=5762 + i*10, takeoff=takeoff)
+                self.drones[i+1] = Drone(sysID=i+1, IP=PARAM.IP, portNumber=PARAM.PORT_MASTER + i*10, takeoff=takeoff)
 
     def manualSearch(self, droneID, step=0.01):
         print(f"@@@@ Manual search\n\tDrone ID: {droneID}\n\tPress a,s,d,w to move the drone\n\tPress e to sense\n\tPress q to quit")
@@ -157,7 +166,7 @@ class DroneManager:
             elif key == "e":
                 print(f"@@@@ Sensing with drone {droneID}")
                  # Sense
-                response = requests.post(URL_SENSE, json={"drone_id": droneID}).json()["sense_status"]
+                response = requests.post(PARAM.URL_SENSE, json={"drone_id": droneID}).json()["sense_status"]
                 print(f"\t\t{response}")
             elif key == "a":
                 print(f"@@@@ Moving drone {droneID} west 100m")
@@ -185,12 +194,96 @@ class DroneManager:
             else:
                 continue
 
+class SimpleSearch:
+    def __init__(self, drone : Drone):
+        self.drone = drone
+
+    def search(self):
+        ns = abs(PARAM.limit_north - PARAM.limit_south) / 4
+        ew = abs(PARAM.limit_east - PARAM.limit_west) / 4
+        limit_north = PARAM.limit_north - ns
+        limit_south = PARAM.limit_south + ns
+        limit_east = PARAM.limit_east - ew
+        limit_west = PARAM.limit_west + ew
+
+        # limit_north = PARAM.limit_north
+        # limit_south = PARAM.limit_south
+        # limit_east = PARAM.limit_east
+        # limit_west = PARAM.limit_west
+
+        pNW = geoLoc(limit_north, limit_west)
+        pNE = geoLoc(limit_north, limit_east)
+        pSW = geoLoc(limit_south, limit_west)
+
+        latStepNbr = int(pNW.distTo(pNE) // PARAM.sensorRange + 1)
+        lonStepNbr = int(pNW.distTo(pSW) // PARAM.sensorRange + 1)
+
+        lat_points = np.linspace(limit_south, limit_north, latStepNbr).tolist()
+        lon_points = np.linspace(limit_west, limit_east, lonStepNbr).tolist()
+        grid_points = [geoLoc(lat, lon, PARAM.takeOffAltitude) for lat in lat_points for lon in (lon_points if lat_points.index(lat) % 2 == 0 else lon_points[::-1])]
+        for point in grid_points:
+            print(point)
+            self.drone.gotoWP(point)
+            self.sense()
+    
+    def sense(self):
+        result =  requests.post(PARAM.URL_SENSE, json={"drone_id": self.drone.sysID}).json()["sense_status"]
+        pos = self.drone.get_position()
+        if result["state"] == "found":
+            self.drone.printInfo(f"Rhino found at {pos}")
+            self.sense() # Sense again to check if multiple rhinos are in range 
+        elif result["state"] == "out_of_range":
+            pass
+        else:
+            self.drone.printInfo(f"Rhino in range at {pos}")
+            self.proximitySearch(geoCircle(pos, result["distance"]))
+
+    def proximitySearch(self, circle : geoCircle):
+        offset = PARAM.foundThreshold
+        p = []
+        p.append(circle.center.offset(-offset, offset))
+        p.append(circle.center.offset(offset, offset))
+        p.append(circle.center.offset(offset, -offset))
+        p.append(circle.center.offset(-offset, -offset))
+
+        circles = []
+        for point in p:
+            self.drone.gotoWP(point)
+            rep = requests.post(PARAM.URL_SENSE, json={"drone_id": self.drone.sysID}).json()["sense_status"]
+            if rep["state"] == "found":
+                self.drone.printInfo(f"Rhino found at {point}")
+                self.sense()
+                return
+            elif rep["state"] == "in_range":
+                circles.append(geoCircle(point, rep["distance"]))
+            else:
+                pass
+        
+        if len(circles) >= 2:
+            intersection = circle.intersection3circle(circles[0], circles[1])
+            self.drone.gotoWP(intersection)
+            self.sense()
+        elif len(circles) == 1:
+            self.drone.gotoWP(circles[0].center)
+            self.proximitySearch(circles[0])
+        else:
+            raise ValueError(f"Unexpected number of circles: {len(circles)}")
+
 if __name__ == "__main__":
     dm = DroneManager()
     # dm.createSwarm(5, takeoff=True, listenOnly=False)
-    dm.createSwarm(5, takeoff=False, listenOnly=False)
+    dm.createSwarm(2, takeoff=False, listenOnly=False)
     print(dm.getDroneIDs())
-    dm.manualSearch(1)
+    
+    # center = dm.drones[1].get_position()
+    # l = 15
+    # square = itertools.cycle([center.offset(-l, l), center.offset(l, l), center.offset(l, -l), center.offset(-l, -l)])
+    # while True:
+    #     dm.drones[1].gotoWP(next(square))
+        
+
+    searcher = SimpleSearch(dm.drones[1])
+    searcher.search()
 
     # for droneID in dm.getDroneIDs():
     #     print(dm.get_drone_position(droneID))

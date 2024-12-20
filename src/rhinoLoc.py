@@ -1,5 +1,6 @@
 import random
 from dataTypes import geoLoc
+import param as PARAM
 
 class RhinoLoc:
     def __init__(self, n, coord1, coord2):
@@ -39,11 +40,11 @@ class RhinoLoc:
         print(min_distance, min_index)
         return min_distance, min_index
     
-    def senseRhino(self, position : geoLoc, range=2000, foundThreshold=500):
+    def senseRhino(self, position : geoLoc):
         distance, index = self.distance_to_closest_rhino(position)
-        if distance > range:
+        if distance > PARAM.sensorRange:
             return {"state": "out_of_range", "distance": -1}
-        elif distance < foundThreshold:
+        elif distance < PARAM.foundThreshold:
             self.rhino_found[index] = True
             return {"state": "found", "distance": distance}
         else:
