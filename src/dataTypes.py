@@ -24,8 +24,11 @@ class geoLoc():
             lat, lon, _ = pm.enu2geodetic(east, north, 0, self.lat, self.lon, 0)
             return geoLoc(lat, lon)
         
-    def distTo(self, other : "geoLoc"):
-        _, _, srange = pm.geodetic2aer(self.lat, self.lon, self.alt or 0, other.lat, other.lon, other.alt or 0)
+    def distTo(self, other : "geoLoc", hzOnly=False):
+        if hzOnly:
+            _, _, srange = pm.geodetic2aer(self.lat, self.lon, 0, other.lat, other.lon, 0)
+        else:
+            _, _, srange = pm.geodetic2aer(self.lat, self.lon, self.alt or 0, other.lat, other.lon, other.alt or 0)
         return srange
     
     def __str__(self):

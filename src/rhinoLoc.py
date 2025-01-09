@@ -33,7 +33,7 @@ class RhinoLoc:
         for i, rhino_position in enumerate(self.rhino_positions):
             if self.rhino_found[i]: # Ignore found rhinos
                 continue
-            distance = position.distTo(rhino_position)
+            distance = position.distTo(rhino_position, hzOnly=True)
             if distance < min_distance:
                 min_distance = distance
                 min_index = i
