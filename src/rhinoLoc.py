@@ -30,6 +30,7 @@ class RhinoLoc:
 
     def distance_to_closest_rhino(self, position : geoLoc):
         min_distance = float('inf')
+        min_index = None
         for i, rhino_position in enumerate(self.rhino_positions):
             if self.rhino_found[i]: # Ignore found rhinos
                 continue
