@@ -6,7 +6,7 @@ limit_east = 36.91846
 
 # GAME PARAMETERS
 rhinoNbr = 10
-droneNbr = 2
+droneNbr = 5
 sensorRange = 200
 foundThreshold = 50
 
@@ -22,4 +22,5 @@ PORT_LISTERNER = 14550
 PORT_MASTER = 5762
 
 # DRONE PARAMETERS
-takeOffAltitude = 10
+takeOffAltitude = 100
+takeOffThreshold = 0.01 # Percentage of the takeOffAltitude waited before considering takeoff complete

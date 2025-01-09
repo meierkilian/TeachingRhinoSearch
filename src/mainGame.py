@@ -35,11 +35,20 @@ class DroneGUI:
         
         self.canvas.create_image(0, 0, anchor=tk.NW, image=self.map_image)
         
+        style = ttk.Style()
+        style.configure("Treeview.Heading", font=("Arial", 10, "bold"))
+        style.configure("Treeview", font=("Arial", 10, "bold"))
         self.leaderboard = ttk.Treeview(self.leaderboard_frame, columns=("drone", "rhinos"), show="headings")
         self.leaderboard.heading("drone", text="Drone")
         self.leaderboard.heading("rhinos", text="Rhinos Found")
         self.leaderboard.pack()
-        
+
+        self.ip_table = ttk.Treeview(self.leaderboard_frame, columns=("drone", "ip"), show="headings")
+        self.ip_table.heading("drone", text="Drone")
+        self.ip_table.heading("ip", text="IP Address")
+        self.ip_table.pack(pady=10)
+
+
         self.reset_button = tk.Button(self.control_frame, text="Reset Game", command=self.reset_game)
         self.reset_button.grid(row=0, column=0, padx=5)
         
@@ -54,6 +63,13 @@ class DroneGUI:
         droneManager.createSwarm(PARAM.droneNbr, takeoff=False, listenOnly=True)
         for drone_id in droneManager.getDroneNames():
             self.leaderboard.insert("", "end", values=(drone_id, 0))
+        
+        for droneNames, drone_id in zip(droneManager.getDroneNames(), droneManager.getDroneIDs()):
+            ip_address = droneManager.getDroneIP(drone_id)
+            self.ip_table.insert("", "end", values=(droneNames, ip_address))
+        
+        self.ip_table.insert("", "end", values=("", ""))
+        self.ip_table.insert("", "end", values=("Mission Planner port", "14550"))
 
         self.drone_icon = tk.PhotoImage(file="ressources/droneIcon.png")
         self.drone_icon = self.drone_icon.subsample(self.drone_icon.width() // 40, self.drone_icon.height() // 40)

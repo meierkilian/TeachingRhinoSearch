@@ -12,6 +12,7 @@ from pymavlink import mavutil
 import param as PARAM
 import requests
 import numpy as np
+import socket
 
 class Drone:
     def __init__(self, sysID, IP, portNumber, takeoff):
@@ -68,7 +69,7 @@ class Drone:
         while True:
             self.printInfo(f" Altitude: {self.vehicle.location.global_relative_frame.alt}", wait=True)
             # Break and return from function just below target altitude.
-            if self.vehicle.location.global_relative_frame.alt >= altitude * 0.95:
+            if self.vehicle.location.global_relative_frame.alt >= altitude * PARAM.takeOffThreshold:
                 self.printInfo("Reached target altitude")
                 break
             time.sleep(1) 
@@ -157,6 +158,23 @@ class DroneManager:
             for i in range(n):
                 self.drones[i+1] = Drone(sysID=i+1, IP=PARAM.IP, portNumber=PARAM.PORT_MASTER + i*10, takeoff=takeoff)
 
+    def getDroneIP(self, droneID, listenOnly=False):
+        if PARAM.IP in {"localhost", "0.0.0.0", "127.0.0.1"}:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                s.connect(("8.8.8.8", 80))
+                IP = s.getsockname()[0]
+            except Exception:
+                IP = "127.0.0.1"
+            finally:
+                s.close()
+        else:
+            IP = PARAM.IP
+        if listenOnly:
+            return f"udpin:{IP}:{PARAM.PORT_LISTERNER}"
+        else:
+            return f"tcp:{IP}:{PARAM.PORT_MASTER + (droneID-1)*10}"
+
     def manualSearch(self, droneID, step=0.01):
         print(f"@@@@ Manual search\n\tDrone ID: {droneID}\n\tPress a,s,d,w to move the drone\n\tPress e to sense\n\tPress q to quit")
         while True:
@@ -199,17 +217,10 @@ class SimpleSearch:
         self.drone = drone
 
     def search(self):
-        ns = abs(PARAM.limit_north - PARAM.limit_south) / 4
-        ew = abs(PARAM.limit_east - PARAM.limit_west) / 4
-        limit_north = PARAM.limit_north - ns
-        limit_south = PARAM.limit_south + ns
-        limit_east = PARAM.limit_east - ew
-        limit_west = PARAM.limit_west + ew
-
-        # limit_north = PARAM.limit_north
-        # limit_south = PARAM.limit_south
-        # limit_east = PARAM.limit_east
-        # limit_west = PARAM.limit_west
+        limit_north = PARAM.limit_north
+        limit_south = PARAM.limit_south
+        limit_east = PARAM.limit_east
+        limit_west = PARAM.limit_west
 
         pNW = geoLoc(limit_north, limit_west)
         pNE = geoLoc(limit_north, limit_east)
@@ -222,7 +233,6 @@ class SimpleSearch:
         lon_points = np.linspace(limit_west, limit_east, lonStepNbr).tolist()
         grid_points = [geoLoc(lat, lon, PARAM.takeOffAltitude) for lat in lat_points for lon in (lon_points if lat_points.index(lat) % 2 == 0 else lon_points[::-1])]
         for point in grid_points:
-            print(point)
             self.drone.gotoWP(point)
             self.sense()
     
@@ -272,8 +282,7 @@ class SimpleSearch:
 if __name__ == "__main__":
     dm = DroneManager()
     # dm.createSwarm(5, takeoff=True, listenOnly=False)
-    dm.createSwarm(2, takeoff=False, listenOnly=False)
-    print(dm.getDroneIDs())
+    dm.createSwarm(5, takeoff=False, listenOnly=False)
     
     # center = dm.drones[1].get_position()
     # l = 15
