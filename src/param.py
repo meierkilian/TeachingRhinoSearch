@@ -6,7 +6,7 @@ limit_east = 36.91846
 
 # GAME PARAMETERS
 rhinoNbr = 10
-droneNbr = 10
+droneNbr = 5
 sensorRange = 200
 foundThreshold = 50
 
@@ -15,8 +15,8 @@ IP = "localhost"
 END_POINT_HANDSHAKE = "handshake"
 END_POINT_SENSE = "sense"
 
-URL_HANDSHAKE = f"http://{IP}:8080/{END_POINT_HANDSHAKE}"
-URL_SENSE = f"http://{IP}:8080/{END_POINT_SENSE}"
+URL_HANDSHAKE = lambda ip: f"http://{ip}:8080/{END_POINT_HANDSHAKE}"
+URL_SENSE = lambda ip: f"http://{ip}:8080/{END_POINT_SENSE}"
 
 PORT_LISTERNER = 14550
 PORT_MASTER = 5762
