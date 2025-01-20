@@ -101,7 +101,7 @@ class ManualSearch:
     def __init__(self, drone : Drone):
         self.drone = drone
 
-    def search(self, step=0.01):
+    def search(self, step=PARAM.foundThreshold):
         print(f"@@@@ Manual search\n\tDrone ID: {self.drone.sysID}\n\tPress a,s,d,w to move the drone\n\tPress e to sense\n\tPress q to quit")
         while True:
             key = input()
@@ -110,27 +110,27 @@ class ManualSearch:
             elif key == "e":
                 print(f"@@@@ Sensing with drone {self.drone.sysID}")
                  # Sense
-                response = requests.post(PARAM.URL_SENSE, json={"drone_id": self.drone.sysID}).json()["sense_status"]
+                response = requests.post(PARAM.URL_SENSE(drone.IP), json={"drone_id": self.drone.sysID}).json()["sense_status"]
                 print(f"\t\t{response}")
             elif key == "a":
-                print(f"@@@@ Moving drone {self.drone.sysID} west 100m")
+                print(f"@@@@ Moving drone {self.drone.sysID} west {step}m")
                 pos = self.drone.get_position()
-                pos.lon -= step
+                pos = pos.offset(east=-step, north=0)
                 self.drone.gotoWP(pos)
             elif key == "d":
-                print(f"@@@@ Moving drone {self.drone.sysID} east 100m")
+                print(f"@@@@ Moving drone {self.drone.sysID} east {step}m")
                 pos = self.drone.get_position()
-                pos.lon += step
+                pos = pos.offset(east=step, north=0)
                 self.drone.gotoWP(pos)
             elif key == "w":
-                print(f"@@@@ Moving drone {self.drone.sysID} north 100m")
+                print(f"@@@@ Moving drone {self.drone.sysID} north {step}m")
                 pos = self.drone.get_position()
-                pos.lat += step
+                pos = pos.offset(east=0, north=step)
                 self.drone.gotoWP(pos)
             elif key == "s":
-                print(f"@@@@ Moving drone {self.drone.sysID} south 100m")
+                print(f"@@@@ Moving drone {self.drone.sysID} south {step}m")
                 pos = self.drone.get_position()
-                pos.lat -= step
+                pos = pos.offset(east=0, north=-step)
                 self.drone.gotoWP(pos)
             else:
                 continue
@@ -146,8 +146,8 @@ class LawnmowerSearch:
         pSW = geoLoc(PARAM.limit_south, PARAM.limit_west)
 
         # @@@ TASK 5 @@@: Explain what the next 4 lines do.
-        latStepNbr = int(pNW.distTo(pNE) // PARAM.foundThreshold + 1)
-        lonStepNbr = int(pNW.distTo(pSW) // PARAM.foundThreshold + 1)
+        latStepNbr = int(pNW.distTo(pNE) // (PARAM.sensorRange / 2**0.5) + 1)
+        lonStepNbr = int(pNW.distTo(pSW) // (PARAM.sensorRange / 2**0.5) + 1)
         lat_points = np.linspace(PARAM.limit_south, PARAM.limit_north, latStepNbr).tolist()
         lon_points = np.linspace(PARAM.limit_west, PARAM.limit_east, lonStepNbr).tolist()
 
@@ -159,7 +159,7 @@ class LawnmowerSearch:
             self.sense()
     
     def sense(self):
-        result =  requests.post(PARAM.URL_SENSE, json={"drone_id": self.drone.sysID}).json()["sense_status"]
+        result =  requests.post(PARAM.URL_SENSE(drone.IP), json={"drone_id": self.drone.sysID}).json()["sense_status"]
         pos = self.drone.get_position()
         if result["state"] == "found":
             self.drone.printInfo(f"Rhino found at {pos}")
@@ -174,8 +174,8 @@ class TriangulationSearch:
         pNE = geoLoc(PARAM.limit_north, PARAM.limit_east)
         pSW = geoLoc(PARAM.limit_south, PARAM.limit_west)
 
-        latStepNbr = int(pNW.distTo(pNE) // PARAM.sensorRange + 1)
-        lonStepNbr = int(pNW.distTo(pSW) // PARAM.sensorRange + 1)
+        latStepNbr = int(pNW.distTo(pNE) // (PARAM.sensorRange / 2**0.5) + 1)
+        lonStepNbr = int(pNW.distTo(pSW) // (PARAM.sensorRange / 2**0.5) + 1)
 
         lat_points = np.linspace(PARAM.limit_south, PARAM.limit_north, latStepNbr).tolist()
         lon_points = np.linspace(PARAM.limit_west, PARAM.limit_east, lonStepNbr).tolist()
@@ -188,7 +188,7 @@ class TriangulationSearch:
     
     def sense(self):
         # @@@ TASK 7 @@@: Try understanding what this function and the proximitySearch() function do?
-        result =  requests.post(PARAM.URL_SENSE, json={"drone_id": self.drone.sysID}).json()["sense_status"]
+        result =  requests.post(PARAM.URL_SENSE(drone.IP), json={"drone_id": self.drone.sysID}).json()["sense_status"]
         pos = self.drone.get_position()
         if result["state"] == "found":
             self.drone.printInfo(f"Rhino found at {pos}")
@@ -210,7 +210,7 @@ class TriangulationSearch:
         circles = []
         for point in p:
             self.drone.gotoWP(point)
-            rep = requests.post(PARAM.URL_SENSE, json={"drone_id": self.drone.sysID}).json()["sense_status"]
+            rep = requests.post(PARAM.URL_SENSE(drone.IP), json={"drone_id": self.drone.sysID}).json()["sense_status"]
             if rep["state"] == "found":
                 self.drone.printInfo(f"Rhino found at {point}")
                 self.sense()
@@ -235,10 +235,10 @@ if __name__ == "__main__":
     # @@@ TASK 3 @@@: Fill in the network details for your own group.
     # Add system ID, i.e. the drone number assigned to your group.
     SYS_ID = 
-    # Add the drone IP address (same for all groups).
+    # Add the drone IP address (same for all groups) as a string.
     IP = 
     # Add port number (specific to your groupe).
-    PORT_NUMBER =  
+    PORT_NUMBER = 
     
     drone = Drone(SYS_ID, IP, PORT_NUMBER) # Connect to the simulated drone.
 

@@ -7,7 +7,7 @@ limit_east = 36.91846
 # GAME PARAMETERS
 rhinoNbr = 10
 droneNbr = 5
-sensorRange = 200
+sensorRange = 400
 foundThreshold = 50
 
 # NETWORK PARAMETERS
