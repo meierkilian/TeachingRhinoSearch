@@ -146,8 +146,8 @@ class LawnmowerSearch:
         pSW = geoLoc(PARAM.limit_south, PARAM.limit_west)
 
         # @@@ TASK 5 @@@: Explain what the next 4 lines do.
-        latStepNbr = int(pNW.distTo(pNE) // (PARAM.sensorRange / 2**0.5) + 1)
-        lonStepNbr = int(pNW.distTo(pSW) // (PARAM.sensorRange / 2**0.5) + 1)
+        latStepNbr = int(pNW.distTo(pNE) // (PARAM.foundThreshold / 2**0.5) + 1)
+        lonStepNbr = int(pNW.distTo(pSW) // (PARAM.foundThreshold / 2**0.5) + 1)
         lat_points = np.linspace(PARAM.limit_south, PARAM.limit_north, latStepNbr).tolist()
         lon_points = np.linspace(PARAM.limit_west, PARAM.limit_east, lonStepNbr).tolist()
 
